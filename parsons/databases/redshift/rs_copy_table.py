@@ -125,15 +125,30 @@ class RedshiftCopyTable(object):
         hashed_name = hash(time.time())
         key = f"{S3_TEMP_KEY_PREFIX}/{hashed_name}.csv.gz"
 
-        # Convert table to compressed CSV file, to optimize the transfers to S3 and to
-        # Redshift.
-        local_path = tbl.to_csv(temp_file_compression='gzip')
-        # Copy table to bucket
-        self.s3.put_file(self.s3_temp_bucket, key, local_path)
+        split_tables = self.split_table(tbl)
+
+        for idx, tbl in split_tables:
+            # Convert table to compressed CSV file, to optimize the transfers to S3 and to
+            # Redshift.
+            local_path = tbl.to_csv(temp_file_compression='gzip')
+            # Copy table to bucket
+            self.s3.put_file(self.s3_temp_bucket, key + f". {str(idx)}", local_path)
 
         return key
 
     def temp_s3_delete(self, key):
 
-        if key:
+        for keys in self.s3.list_keys(self.s3_temp_bucket, prefix=key):
             self.s3.remove_file(self.s3_temp_bucket, key)
+
+    def split_table(self, tbl):
+
+        CLUSTER_SLICES = 4
+        MINIMUM_SPLIT_ROWS = 100
+
+        if (MINIMUM_SPLIT_ROWS * tbl.columns):
+            split_tbls = int(tbl.chunk(tbl.num_rows / CLUSTER_SLICES))
+            return split_tbls
+
+        else:
+            return tbl
