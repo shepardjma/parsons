@@ -59,8 +59,8 @@ class Redshift(RedshiftCreateTable, RedshiftCopyTable, RedshiftTableUtilities, R
     """
 
     def __init__(self, username=None, password=None, host=None, db=None, port=None,
-                 timeout=10, s3_temp_bucket=None,
-                 aws_access_key_id=None, aws_secret_access_key=None, iam_role=None):
+                 timeout=10, s3_temp_bucket=None, aws_access_key_id=None, 
+                 aws_secret_access_key=None, iam_role=None, nodes=4):
 
         try:
             self.username = username or os.environ['REDSHIFT_USERNAME']
@@ -68,6 +68,7 @@ class Redshift(RedshiftCreateTable, RedshiftCopyTable, RedshiftTableUtilities, R
             self.host = host or os.environ['REDSHIFT_HOST']
             self.db = db or os.environ['REDSHIFT_DB']
             self.port = port or os.environ['REDSHIFT_PORT']
+            self.nodes = nodes or os.environ['REDSHIFT_NODES']
         except KeyError as error:
             logger.error("Connection info missing. Most include as kwarg or "
                          "env variable.")
@@ -505,8 +506,8 @@ class Redshift(RedshiftCreateTable, RedshiftCopyTable, RedshiftTableUtilities, R
                              'truncatecolumns': truncatecolumns,
                              'specifycols': cols,
                              'aws_access_key_id': aws_access_key_id,
-                             'aws_secret_access_key': aws_secret_access_key,
-                             'compression': 'gzip'}
+                             'aws_secret_access_key': aws_secret_access_key}
+                             # 'compression': 'gzip'}
 
                 # Copy from S3 to Redshift
                 sql = self.copy_statement(table_name, self.s3_temp_bucket, key, **copy_args)

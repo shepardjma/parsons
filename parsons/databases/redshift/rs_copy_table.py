@@ -7,6 +7,11 @@ logger = logging.getLogger(__name__)
 
 S3_TEMP_KEY_PREFIX = "Parsons_RedshiftCopyTable"
 
+# Used to optimize the splitting of tables for the copy.
+CLUSTER_SLICES = 10
+MINIMUM_FILE_SPLIT = 100000000000
+# MINIMUM_FILE_SPLIT = 1
+
 
 class RedshiftCopyTable(object):
 
@@ -125,14 +130,19 @@ class RedshiftCopyTable(object):
         hashed_name = hash(time.time())
         key = f"{S3_TEMP_KEY_PREFIX}/{hashed_name}.csv.gz"
 
-        split_tables = self.split_table(tbl)
+        file_path = tbl.to_csv(temp_file_compression='gzip')
+        tbl_list = self.split_table(tbl, file_path)
 
-        for idx, tbl in split_tables:
+        print (len(tbl_list))
+
+        for idx, tbl in enumerate(tbl_list):
             # Convert table to compressed CSV file, to optimize the transfers to S3 and to
             # Redshift.
-            local_path = tbl.to_csv(temp_file_compression='gzip')
+            
+            file_path = tbl.to_csv()
+            # file_path = tbl.to_csv(temp_file_compression='gzip')
             # Copy table to bucket
-            self.s3.put_file(self.s3_temp_bucket, key + f". {str(idx)}", local_path)
+            self.s3.put_file(self.s3_temp_bucket, key + f".{str(idx)}", file_path)
 
         return key
 
@@ -141,14 +151,12 @@ class RedshiftCopyTable(object):
         for keys in self.s3.list_keys(self.s3_temp_bucket, prefix=key):
             self.s3.remove_file(self.s3_temp_bucket, key)
 
-    def split_table(self, tbl):
+    def split_table(self, tbl, file_path):
 
-        CLUSTER_SLICES = 4
-        MINIMUM_SPLIT_ROWS = 100
-
-        if (MINIMUM_SPLIT_ROWS * tbl.columns):
-            split_tbls = int(tbl.chunk(tbl.num_rows / CLUSTER_SLICES))
-            return split_tbls
-
+        if os.stat(file_path).st_size >= MINIMUM_FILE_SPLIT:
+            tbl_list = tbl.chunk(int(tbl.num_rows / CLUSTER_SLICES))
+            print ('split...')
+            return tbl_list
         else:
-            return tbl
+            print ('no split...')
+            return [tbl]

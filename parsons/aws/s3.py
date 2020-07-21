@@ -232,6 +232,7 @@ class S3(object):
         """
 
         self.client.upload_file(local_path, bucket, key, ExtraArgs={'ACL': acl, **kwargs})
+        logger.info(f'Put {key} in {bucket}')
 
     def remove_file(self, bucket, key):
         """
